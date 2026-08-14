@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: kaixin-yike-bot
+    runtime: python
+    plan: free
+    buildCommand: ""
+    startCommand: python render_app.py
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: WEBHOOK_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: BOT_TIMEZONE
+        value: Asia/Shanghai
+      - key: DAILY_PUSH_TIME
+        value: "09:00"
