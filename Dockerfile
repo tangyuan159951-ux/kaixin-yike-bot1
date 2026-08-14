@@ -1,5 +1,5 @@
+# Render Telegram webhook service
 FROM python:3.12-slim
-
 WORKDIR /app
 COPY bot.py render_app.py /app/
 RUN mkdir -p /app/data
