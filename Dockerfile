@@ -1,7 +1,7 @@
-# Render Telegram webhook service
 FROM python:3.12-slim
+
 WORKDIR /app
-COPY bot.py render_app.py /app/
+COPY bot.py render_app.py content.db /app/
 RUN mkdir -p /app/data
 
 ENV BOT_DB_PATH=/app/data/bot.db

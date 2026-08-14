@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 import os
 import random
+import re
 import signal
 import sqlite3
 import time
@@ -21,6 +22,7 @@ API = f"https://api.telegram.org/bot{TOKEN}"
 PUSH_TIME = os.environ.get("DAILY_PUSH_TIME", "09:00")
 TIMEZONE = os.environ.get("BOT_TIMEZONE", "Asia/Shanghai")
 DB_PATH = Path(os.environ.get("BOT_DB_PATH", "data/bot.db"))
+CONTENT_DB_PATH = Path(os.environ.get("CONTENT_DB_PATH", "content.db"))
 RUNNING = True
 
 JOKES = [
@@ -55,9 +57,11 @@ HELP = """🎉 欢迎来到「开心一刻」！
 我能给你送上笑话、暖心小故事和脑筋急转弯。
 
 /joke — 来个笑话
+/duanzi — 来个段子
 /story — 今日故事
 /riddle — 脑筋急转弯
 /answer — 查看上一题答案
+/article — 提升自我的文章
 /daily — 订阅每日推送
 /stop — 取消每日推送
 /help — 查看帮助
@@ -71,6 +75,16 @@ def db() -> sqlite3.Connection:
     conn.execute("CREATE TABLE IF NOT EXISTS subscribers (chat_id INTEGER PRIMARY KEY, last_push TEXT)")
     conn.execute("CREATE TABLE IF NOT EXISTS state (chat_id INTEGER PRIMARY KEY, answer TEXT)")
     return conn
+
+
+def random_content(kind: str):
+    if not CONTENT_DB_PATH.exists():
+        return None
+    with sqlite3.connect(CONTENT_DB_PATH) as conn:
+        return conn.execute(
+            "SELECT title, body, answer FROM content WHERE type = ? ORDER BY RANDOM() LIMIT 1",
+            (kind,),
+        ).fetchone()
 
 
 def api(method: str, **params):
@@ -101,7 +115,11 @@ def unsubscribe(chat_id: int) -> None:
 
 
 def new_riddle(chat_id: int) -> str:
-    question, answer = random.choice(RIDDLES)
+    item = random_content("riddle")
+    if item:
+        _, question, answer = item
+    else:
+        question, answer = random.choice(RIDDLES)
     with db() as conn:
         conn.execute(
             "INSERT INTO state(chat_id, answer) VALUES (?, ?) ON CONFLICT(chat_id) DO UPDATE SET answer=excluded.answer",
@@ -116,6 +134,24 @@ def answer(chat_id: int) -> str:
     return f"💡 答案：{row[0]}" if row else "你还没有题目，先发送 /riddle 吧。"
 
 
+def normalize_answer(value: str) -> str:
+    value = value.strip().lower()
+    value = re.sub(r"^(我猜|答案是|我觉得是|应该是)", "", value)
+    return re.sub(r"[\s，。！？、,.!?：:；;‘’“”'\"（）()]", "", value)
+
+
+def judge_answer(chat_id: int, text: str):
+    with db() as conn:
+        row = conn.execute("SELECT answer FROM state WHERE chat_id = ?", (chat_id,)).fetchone()
+        if not row:
+            return None
+        expected = row[0]
+        if normalize_answer(text) == normalize_answer(expected):
+            conn.execute("DELETE FROM state WHERE chat_id = ?", (chat_id,))
+            return "🎉 回答正确！真棒！发送 /riddle 再挑战一道。"
+    return "还不对，再想一想～也可以发送 /answer 查看答案。"
+
+
 def handle(message: dict) -> None:
     chat_id = message.get("chat", {}).get("id")
     text = (message.get("text") or "").strip()
@@ -124,14 +160,21 @@ def handle(message: dict) -> None:
     command = text.split()[0].split("@")[0].lower()
     if command in {"/start", "/help"}:
         send(chat_id, HELP)
-    elif command == "/joke" or "笑话" in text or "段子" in text:
-        send(chat_id, f"😂 开心段子\n\n{random.choice(JOKES)}")
+    elif command == "/joke" or "笑话" in text:
+        item = random_content("joke")
+        send(chat_id, f"😂 开心笑话\n\n{item[1] if item else random.choice(JOKES)}")
+    elif command == "/duanzi" or "段子" in text:
+        item = random_content("duanzi")
+        send(chat_id, f"😄 轻松段子\n\n{item[1] if item else random.choice(JOKES)}")
     elif command == "/story" or "故事" in text:
         send(chat_id, f"📖 每日故事\n\n{random.choice(STORIES)}")
     elif command == "/riddle" or "急转弯" in text or "猜谜" in text:
         send(chat_id, new_riddle(chat_id))
     elif command == "/answer" or text == "答案":
         send(chat_id, answer(chat_id))
+    elif command == "/article" or "提升" in text or "成长文章" in text:
+        item = random_content("article")
+        send(chat_id, f"🌱 {item[0]}\n\n{item[1]}" if item else "文章库正在准备中。")
     elif command == "/daily":
         subscribe(chat_id)
         send(chat_id, f"🔔 已订阅每日推送！每天 {PUSH_TIME}（{TIMEZONE}）见。")
@@ -139,23 +182,33 @@ def handle(message: dict) -> None:
         unsubscribe(chat_id)
         send(chat_id, "🔕 已取消每日推送。想念我时随时发送 /daily。")
     else:
-        send(chat_id, "我暂时没听懂～发送 /help 看看我会什么。")
+        judged = judge_answer(chat_id, text)
+        send(chat_id, judged or "我暂时没听懂～发送 /help 看看我会什么。")
 
 
 def push_daily() -> None:
     now = datetime.now(ZoneInfo(TIMEZONE))
     today = now.date().isoformat()
-    if now.strftime("%H:%M") != PUSH_TIME:
+    # External free monitors may arrive a few minutes late. Send on the first
+    # check at or after the configured time; last_push prevents duplicates.
+    if now.strftime("%H:%M") < PUSH_TIME:
         return
     with db() as conn:
         rows = conn.execute("SELECT chat_id FROM subscribers WHERE last_push IS NULL OR last_push != ?", (today,)).fetchall()
         for (chat_id,) in rows:
             try:
-                choice = random.choice(["joke", "story", "riddle"])
+                choice = random.choice(["joke", "duanzi", "story", "riddle", "article"])
                 if choice == "joke":
-                    send(chat_id, f"☀️ 今日份快乐\n\n{random.choice(JOKES)}")
+                    item = random_content("joke")
+                    send(chat_id, f"☀️ 今日份快乐\n\n{item[1] if item else random.choice(JOKES)}")
+                elif choice == "duanzi":
+                    item = random_content("duanzi")
+                    send(chat_id, f"☀️ 今日段子\n\n{item[1] if item else random.choice(JOKES)}")
                 elif choice == "story":
                     send(chat_id, f"☀️ 今日小故事\n\n{random.choice(STORIES)}")
+                elif choice == "article":
+                    item = random_content("article")
+                    send(chat_id, f"🌱 {item[0]}\n\n{item[1]}" if item else "今天也要继续成长。")
                 else:
                     send(chat_id, new_riddle(chat_id))
                 conn.execute("UPDATE subscribers SET last_push = ? WHERE chat_id = ?", (today, chat_id))
@@ -172,9 +225,11 @@ def setup() -> None:
 def setup_commands_only() -> None:
     commands = json.dumps([
         {"command": "joke", "description": "来个笑话"},
+        {"command": "duanzi", "description": "来个段子"},
         {"command": "story", "description": "今日故事"},
         {"command": "riddle", "description": "脑筋急转弯"},
         {"command": "answer", "description": "查看答案"},
+        {"command": "article", "description": "提升自我的文章"},
         {"command": "daily", "description": "订阅每日推送"},
         {"command": "stop", "description": "取消每日推送"},
         {"command": "help", "description": "使用帮助"},

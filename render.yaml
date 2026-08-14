@@ -3,7 +3,7 @@ services:
     name: kaixin-yike-bot
     runtime: python
     plan: free
-    buildCommand: ""
+    buildCommand: python -m py_compile bot.py render_app.py
     startCommand: python render_app.py
     healthCheckPath: /health
     envVars:
