@@ -19,6 +19,21 @@ WEBHOOK_SECRET = os.environ.get("WEBHOOK_SECRET") or hashlib.sha256(bot.TOKEN.en
 CRON_SECRET = os.environ.get("CRON_SECRET", "").strip()
 
 
+def process_message(message: dict) -> None:
+    bot.handle(message)
+    bot.cloud_backup()
+
+
+def process_callback(callback: dict) -> None:
+    bot.handle_callback(callback)
+    bot.cloud_backup()
+
+
+def process_daily_push() -> None:
+    bot.push_daily()
+    bot.cloud_backup()
+
+
 def register_webhook() -> None:
     if not EXTERNAL_URL:
         print("等待 RENDER_EXTERNAL_URL；本地模式不注册 Webhook。", flush=True)
@@ -27,7 +42,7 @@ def register_webhook() -> None:
         "setWebhook",
         url=f"{EXTERNAL_URL}/telegram",
         secret_token=WEBHOOK_SECRET,
-        allowed_updates=json.dumps(["message"]),
+        allowed_updates=json.dumps(["message", "callback_query"]),
         drop_pending_updates="false",
     )
     print(f"Webhook 已连接：{EXTERNAL_URL}/telegram", flush=True)
@@ -52,7 +67,7 @@ class Handler(BaseHTTPRequestHandler):
             if not CRON_SECRET or key != CRON_SECRET:
                 self.reply(403, {"ok": False})
                 return
-            threading.Thread(target=bot.push_daily, daemon=True).start()
+            threading.Thread(target=process_daily_push, daemon=True).start()
             self.reply(200, {"ok": True, "message": "daily push started"})
             return
         self.reply(404, {"ok": False})
@@ -68,7 +83,9 @@ class Handler(BaseHTTPRequestHandler):
             length = int(self.headers.get("Content-Length", "0"))
             update = json.loads(self.rfile.read(length) or b"{}")
             if "message" in update:
-                threading.Thread(target=bot.handle, args=(update["message"],), daemon=True).start()
+                threading.Thread(target=process_message, args=(update["message"],), daemon=True).start()
+            elif "callback_query" in update:
+                threading.Thread(target=process_callback, args=(update["callback_query"],), daemon=True).start()
             self.reply(200, {"ok": True})
         except (ValueError, json.JSONDecodeError):
             self.reply(400, {"ok": False})
@@ -81,6 +98,7 @@ def main() -> None:
     if not bot.TOKEN:
         raise SystemExit("缺少 TELEGRAM_BOT_TOKEN 环境变量。")
     bot.db().close()
+    bot.cloud_restore()
     bot.setup_commands_only()
     register_webhook()
     server = ThreadingHTTPServer(("0.0.0.0", PORT), Handler)

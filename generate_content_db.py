@@ -104,6 +104,11 @@ article_perspectives = [
     "微小进步视角", "环境设计视角", "自我接纳视角", "实践反馈视角", "持续成长视角",
 ]
 
+story_heroes = ["小林", "阿宁", "小满", "安安", "阿树", "小禾", "晨晨", "小夏", "乐乐", "青青", "小远", "子墨", "小鹿", "阿月", "小川", "宁宁", "星星", "小南", "木木", "小雨"]
+story_places = ["旧车站", "山顶邮局", "海边灯塔", "小镇书店", "月光巷", "森林小屋", "清晨菜场", "屋顶花园", "河边长椅", "深夜便利店", "校园操场", "老照相馆", "雨天站台", "安静图书馆", "小城电影院", "山间茶馆", "街角面包店", "蓝色渔村", "老式钟表店", "向日葵田", "雪夜小站", "巷口理发店", "湖边小路", "山脚诊所", "温暖食堂"]
+story_objects = ["一封迟到的信", "一把会发光的伞", "一颗装着回忆的糖", "一张没有终点的车票", "一本会回答问题的书", "一枚温暖的纽扣", "一盏不会熄灭的灯", "一只迷路的纸鹤", "一张陌生人留下的照片", "一颗会唱歌的石头", "一只慢了十分钟的钟", "一张写满谢谢的纸", "一瓶收集微笑的风", "一双等待主人的鞋", "一个只能装好消息的盒子", "一枚会指向家的硬币", "一朵不怕雨的纸花", "一条写着勇气的围巾", "一只记得承诺的杯子", "一颗从不抱怨的种子"]
+story_lessons = ["真正的勇气不是不害怕，而是害怕时仍愿意往前走", "认真对待的小事，会在意想不到的时候照亮你", "善意送出去以后，常会换一种方式回来", "走得慢没关系，别忘了看见身边的人", "每个平凡的人都能成为别人故事里的光", "不必等待完美的一天，今天就可以开始", "有时候放下答案，才能听见内心真正的声音", "当你愿意帮助一个人，世界就会多一条回家的路", "失败不会定义你，再次出发的选择才会", "一个人能留给别人最好的礼物，常常是被理解的感觉", "幸福不总在远方，它也许就在你愿意珍惜的这一刻", "给别人留一点余地，也是给自己留一扇门", "真正的成长，是学会温柔地和自己相处", "希望不是等来的，是在一次次小行动里长出来的", "记得感谢走过的路，也要相信还没到达的远方", "真诚的一句话，有时候比华丽的安慰更有力量", "与其害怕失去，不如好好经历此刻拥有", "当你照顾好自己，才有力量把温暖分给别人", "不要小看每天的一点点进步，时间会让它变得很大", "真正的告别不是忘记，而是带着爱继续生活"]
+
 
 def build_rows():
     jokes = []
@@ -146,13 +151,23 @@ def build_rows():
             )
             for perspective in article_perspectives:
                 articles.append(("article", f"{title}｜{perspective}", f"【{perspective}】\n{body}", None, topic))
-    return jokes, duanzi, riddles, articles
+    stories = []
+    for hero in story_heroes:
+        for place in story_places:
+            for obj, lesson in zip(story_objects, story_lessons):
+                title = f"{place}里的{obj[2:]}"
+                body = (f"{hero}在{place}意外发现了{obj}。起初，大家都觉得它平平无奇，"
+                        f"但{hero}愿意停下来，认真听完它背后的故事。\n\n"
+                        f"那天以后，{place}多了一个小小的约定：无论谁经过，都会为下一个人留下一点善意。\n\n"
+                        f"{hero}终于明白：{lesson}。")
+                stories.append(("story", title, body, None, place))
+    return jokes, duanzi, riddles, articles, stories
 
 
 def main():
-    jokes, duanzi, riddles, articles = build_rows()
-    expected = {"joke": 100000, "duanzi": 100000, "riddle": 100000, "article": 5000}
-    rows = jokes + duanzi + riddles + articles
+    jokes, duanzi, riddles, articles, stories = build_rows()
+    expected = {"joke": 100000, "duanzi": 100000, "riddle": 100000, "article": 5000, "story": 10000}
+    rows = jokes + duanzi + riddles + articles + stories
     assert {k: sum(1 for r in rows if r[0] == k) for k in expected} == expected
     for kind in expected:
         bodies = [r[2] for r in rows if r[0] == kind]

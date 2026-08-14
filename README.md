@@ -1,6 +1,6 @@
 # 开心一刻 Telegram 娱乐机器人
 
-一个纯娱乐中文机器人，支持随机笑话/段子、每日故事、脑筋急转弯及订阅式每日推送。使用 Python 标准库实现，无第三方依赖。
+一个纯娱乐中文机器人，包含 10 万笑话、10 万段子、10 万脑筋急转弯、1 万故事和 5000 篇成长文章。支持防重复推荐、答案判断、按钮菜单、反馈和小游戏。
 
 ## 创建机器人
 
@@ -28,6 +28,9 @@ python3 bot.py
 | `/story` | 随机每日故事 |
 | `/riddle` | 脑筋急转弯 |
 | `/answer` | 查看上一题答案 |
+| `/article` | 提升自我的文章 |
+| `/games` | 小游戏中心 |
+| `/history` | 查看使用记录 |
 | `/daily` | 订阅每日推送 |
 | `/stop` | 取消每日推送 |
 | `/help` | 使用帮助 |
@@ -94,4 +97,20 @@ https://你的Render域名/cron?key=你的CRON_SECRET
 
 北京时间 09:00 对应 UTC 01:00。接口具有密钥保护，并会利用数据库中的订阅记录推送内容。
 
-注意：Render 免费服务的本地文件不是永久存储；重新部署或平台重启后，用户需要再次发送 `/daily`。普通笑话、故事和脑筋急转弯功能不受影响。
+
+## Cloudflare D1 永久保存
+
+项目包含 `cloudflare_state_worker.js` 和 `cloudflare_state_schema.sql`。将 Worker 绑定 D1 为 `DB`，创建机密 `STATE_API_KEY`，然后在 Render 增加：
+
+- `STATE_API_URL`：`https://你的Worker域名/state`
+- `STATE_API_KEY`：与 Cloudflare Worker 机密相同的随机字符串
+
+配置后，订阅、历史、反馈、已读内容和游戏进度会在每次操作后备份到 D1，Render 重启时自动恢复。
+
+## 小游戏
+
+- 猜数字
+- 石头剪刀布
+- 算术挑战
+- 成语接龙
+- 猜字游戏
