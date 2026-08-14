@@ -16,6 +16,13 @@ CREATE TABLE IF NOT EXISTS seen (
   PRIMARY KEY (chat_id, content_type, content_id)
 );
 CREATE INDEX IF NOT EXISTS idx_seen_user_type ON seen(chat_id, content_type, seen_at);
+CREATE TABLE IF NOT EXISTS content_cursor (
+  chat_id INTEGER NOT NULL,
+  content_type TEXT NOT NULL,
+  offset INTEGER NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (chat_id, content_type)
+);
 CREATE TABLE IF NOT EXISTS history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   chat_id INTEGER NOT NULL,
