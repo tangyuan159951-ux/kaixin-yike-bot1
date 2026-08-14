@@ -1,8 +1,8 @@
 FROM python:3.12-slim
 
 WORKDIR /app
-COPY bot.py render_app.py content.db /app/
-RUN mkdir -p /app/data
+COPY bot.py render_app.py generate_content_db.py /app/
+RUN python3 generate_content_db.py && mkdir -p /app/data
 
 ENV BOT_DB_PATH=/app/data/bot.db
 ENV BOT_TIMEZONE=Asia/Shanghai
