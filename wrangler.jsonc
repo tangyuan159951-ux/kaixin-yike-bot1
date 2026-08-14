@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "kaixin-yike-bot",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-14",
+  "workers_dev": true,
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "kaixin-yike-db",
+      "database_id": "ee6900aa-a2e0-49ac-a6f4-295127236de6"
+    }
+  ],
+  "triggers": {
+    "crons": ["0 1 * * *"]
+  }
+}
